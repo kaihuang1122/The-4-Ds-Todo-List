@@ -13,5 +13,5 @@ jobs:
         with:
           repoToken: '${{ secrets.GITHUB_TOKEN }}'
           firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_THE_4_DS_TODO_LIST }}'
+          projectId: the-4-ds-todo-list # 確保這裡與 Firebase Console 看到的 ID 完全一致
           channelId: live
-          projectId: the-4-ds-todo-list
