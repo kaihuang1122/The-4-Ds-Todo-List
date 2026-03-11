@@ -1,0 +1,17 @@
+name: Deploy to Firebase Hosting on merge
+'on':
+  push:
+    branches:
+      - main  # 如果你的主分支叫 master 請改掉
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm ci && npm run build
+      - uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: '${{ secrets.GITHUB_TOKEN }}'
+          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_THE_4_DS_TODO_LIST }}'
+          channelId: live
+          projectId: the-4-ds-todo-list
