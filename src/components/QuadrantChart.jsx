@@ -1,12 +1,13 @@
 import {
   formatDateTime,
   formatDeadline,
-  getAxisSummary,
+  getAxisSummaryWithNow,
   getImportancePosition,
+  getTimeAxisTicks,
   getUrgencyPosition,
 } from "../utils";
 
-export default function QuadrantChart({ locale, onSelect, t, todos }) {
+export default function QuadrantChart({ locale, nowTimestamp, onSelect, t, todos }) {
   if (!todos.length) {
     return (
       <section className="panel chart-panel empty-state">
@@ -15,7 +16,9 @@ export default function QuadrantChart({ locale, onSelect, t, todos }) {
     );
   }
 
-  const summary = getAxisSummary(todos);
+  const summary = getAxisSummaryWithNow(todos, nowTimestamp);
+  const tickItems = getTimeAxisTicks(summary.domainStartAt, summary.maxDueAt, locale);
+  const nowPosition = getUrgencyPosition(summary.nowAt, summary.domainStartAt, summary.maxDueAt);
 
   return (
     <section className="panel chart-panel">
@@ -26,7 +29,12 @@ export default function QuadrantChart({ locale, onSelect, t, todos }) {
       </div>
 
       <div className="range-list">
-        <span>{t("dueRange", { start: formatDateTime(summary.minDueAt, locale), end: formatDateTime(summary.maxDueAt, locale) })}</span>
+        <span>
+          {t("dueRange", {
+            start: formatDateTime(summary.domainStartAt, locale),
+            end: formatDateTime(summary.maxDueAt, locale),
+          })}
+        </span>
         <span>
           {t("importanceRange", {
             start: summary.minImportance.toFixed(1),
@@ -38,6 +46,9 @@ export default function QuadrantChart({ locale, onSelect, t, todos }) {
       <div className="chart-area">
         <div className="quadrant-line vertical" />
         <div className="quadrant-line horizontal" />
+        <div className="now-line" style={{ left: `${nowPosition}%` }}>
+          <span className="now-label">{t("nowMarker")}</span>
+        </div>
 
         <div className="quadrant-label top-left">{t("plan")}</div>
         <div className="quadrant-label top-right">{t("doNow")}</div>
@@ -45,7 +56,7 @@ export default function QuadrantChart({ locale, onSelect, t, todos }) {
         <div className="quadrant-label bottom-right">{t("delegate")}</div>
 
         {todos.map((todo) => {
-          const x = getUrgencyPosition(todo.dueAt, summary.minDueAt, summary.maxDueAt);
+          const x = getUrgencyPosition(todo.dueAt, summary.domainStartAt, summary.maxDueAt);
           const y = getImportancePosition(
             todo.importance,
             summary.minImportance,
@@ -70,6 +81,21 @@ export default function QuadrantChart({ locale, onSelect, t, todos }) {
         <div className="axis-label x-right">{t("moreUrgent")}</div>
         <div className="axis-label y-top">{t("moreImportant")}</div>
         <div className="axis-label y-bottom">{t("lessImportant")}</div>
+
+        <div className="time-axis">
+          {tickItems.map((tick) => (
+            <div
+              className="time-tick"
+              key={tick.value}
+              style={{
+                left: `${getUrgencyPosition(tick.value, summary.domainStartAt, summary.maxDueAt)}%`,
+              }}
+            >
+              <span className="time-tick-mark" />
+              <span className="time-tick-label">{tick.label}</span>
+            </div>
+          ))}
+        </div>
       </div>
     </section>
   );

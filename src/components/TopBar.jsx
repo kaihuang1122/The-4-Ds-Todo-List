@@ -6,17 +6,29 @@ export default function TopBar({
   onSignOut,
   onThemeChange,
   onViewModeChange,
+  onWorkspaceTitleBlur,
+  onWorkspaceTitleChange,
   t,
   theme,
   user,
   viewMode,
+  workspaceTitle,
   busy,
 }) {
   return (
     <header className="panel hero-panel">
       <div className="hero-copy">
         <span className="eyebrow">{t("statusReady")}</span>
-        <h1>{t("appTitle")}</h1>
+        <input
+          aria-label={t("workspaceTitleLabel")}
+          className="workspace-title-input"
+          maxLength="60"
+          onBlur={onWorkspaceTitleBlur}
+          onChange={(event) => onWorkspaceTitleChange(event.target.value)}
+          placeholder={t("workspaceTitlePlaceholder")}
+          type="text"
+          value={workspaceTitle}
+        />
         <p>{t("appSubtitle")}</p>
         <div className="account-chip">
           <span>{t("currentUser")}</span>

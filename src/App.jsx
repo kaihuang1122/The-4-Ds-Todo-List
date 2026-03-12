@@ -18,6 +18,7 @@ import {
   getAuthErrorMessage,
   getQuadrantCounts,
   getSystemTheme,
+  getWorkspaceTitleStorageKey,
   readStorage,
   sortTodos,
   storageKeys,
@@ -65,6 +66,13 @@ function normalizeTodo(snapshot) {
     createdAt: typeof data.createdAt === "number" ? data.createdAt : Date.now(),
     updatedAt: typeof data.updatedAt === "number" ? data.updatedAt : Date.now(),
   };
+}
+
+function isEditableTarget(target) {
+  return (
+    target instanceof HTMLElement &&
+    (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))
+  );
 }
 
 function SetupView({ locale, onLocaleChange, onThemeChange, t, theme }) {
@@ -146,6 +154,8 @@ export default function App() {
   const [selectedTodo, setSelectedTodo] = useState(null);
   const [formVersion, setFormVersion] = useState(0);
   const [status, setStatus] = useState(null);
+  const [workspaceTitle, setWorkspaceTitle] = useState("");
+  const [nowTimestamp, setNowTimestamp] = useState(() => Date.now());
 
   const t = useMemo(() => createTranslator(locale), [locale]);
 
@@ -175,6 +185,34 @@ export default function App() {
     const timer = window.setTimeout(() => setStatus(null), 4000);
     return () => window.clearTimeout(timer);
   }, [status]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNowTimestamp(Date.now()), 60 * 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!user) {
+      setWorkspaceTitle(t("appTitle"));
+      return;
+    }
+
+    const storedTitle = readStorage(getWorkspaceTitleStorageKey(user.uid), "");
+    setWorkspaceTitle(storedTitle || t("appTitle"));
+  }, [t, user]);
+
+  useEffect(() => {
+    const nextTitle = user ? workspaceTitle.trim() || t("appTitle") : t("appTitle");
+    document.title = nextTitle;
+  }, [t, user, workspaceTitle]);
+
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+
+    writeStorage(getWorkspaceTitleStorageKey(user.uid), workspaceTitle.trim() || t("appTitle"));
+  }, [t, user, workspaceTitle]);
 
   useEffect(() => {
     if (!isFirebaseConfigured || !auth) {
@@ -231,7 +269,7 @@ export default function App() {
   }, [selectedTodo, todos]);
 
   const sortedTodos = useMemo(() => sortTodos(todos, sortConfig), [sortConfig, todos]);
-  const counts = useMemo(() => getQuadrantCounts(todos), [todos]);
+  const counts = useMemo(() => getQuadrantCounts(todos, nowTimestamp), [nowTimestamp, todos]);
 
   function handleSort(key) {
     setSortConfig((current) => {
@@ -387,14 +425,39 @@ export default function App() {
     }
   }
 
+  useEffect(() => {
+    if (!selectedTodo || busy) {
+      return undefined;
+    }
+
+    function handleKeyDown(event) {
+      const wantsDelete = event.key === "Delete" || (event.metaKey && event.key === "Backspace");
+
+      if (!wantsDelete || isEditableTarget(event.target)) {
+        return;
+      }
+
+      event.preventDefault();
+      void handleDelete(selectedTodo);
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [busy, handleDelete, selectedTodo]);
+
   function handleEdit(todo) {
     setSelectedTodo(todo);
-    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function handleCancelEdit() {
     setSelectedTodo(null);
     setFormVersion((current) => current + 1);
+  }
+
+  function handleWorkspaceTitleBlur() {
+    if (!workspaceTitle.trim()) {
+      setWorkspaceTitle(t("appTitle"));
+    }
   }
 
   if (!isFirebaseConfigured) {
@@ -475,10 +538,13 @@ export default function App() {
         onSignOut={handleSignOut}
         onThemeChange={setTheme}
         onViewModeChange={setViewMode}
+        onWorkspaceTitleBlur={handleWorkspaceTitleBlur}
+        onWorkspaceTitleChange={setWorkspaceTitle}
         t={t}
         theme={theme}
         user={user}
         viewMode={viewMode}
+        workspaceTitle={workspaceTitle}
       />
 
       {status && <div className={`status-banner ${status.type}`}>{status.message}</div>}
@@ -497,12 +563,19 @@ export default function App() {
           initialTodo={selectedTodo}
           key={selectedTodo ? `edit-${selectedTodo.id}` : `new-${formVersion}`}
           onCancel={handleCancelEdit}
+          onDelete={selectedTodo ? () => handleDelete(selectedTodo) : undefined}
           onSubmit={handleSaveTodo}
           t={t}
         />
 
         {viewMode === "quadrant" ? (
-          <QuadrantChart locale={locale} onSelect={handleEdit} t={t} todos={todos} />
+          <QuadrantChart
+            locale={locale}
+            nowTimestamp={nowTimestamp}
+            onSelect={handleEdit}
+            t={t}
+            todos={todos}
+          />
         ) : (
           <TodoList
             locale={locale}

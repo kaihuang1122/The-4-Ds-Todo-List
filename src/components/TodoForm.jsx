@@ -8,7 +8,7 @@ const emptyForm = {
   notes: "",
 };
 
-export default function TodoForm({ initialTodo, onCancel, onSubmit, t, busy }) {
+export default function TodoForm({ initialTodo, onCancel, onDelete, onSubmit, t, busy }) {
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState("");
 
@@ -68,7 +68,7 @@ export default function TodoForm({ initialTodo, onCancel, onSubmit, t, busy }) {
         <h2>{initialTodo ? t("formEditTitle") : t("formCreateTitle")}</h2>
       </div>
 
-      <form className="stack" onSubmit={handleSubmit}>
+      <form className="stack" noValidate onSubmit={handleSubmit}>
         <label className="field">
           <span>{t("taskName")}</span>
           <input
@@ -113,11 +113,12 @@ export default function TodoForm({ initialTodo, onCancel, onSubmit, t, busy }) {
           <input
             className="text-input"
             disabled={busy}
+            inputMode="decimal"
             max="10"
             min="1"
             onChange={(event) => updateField("importance", event.target.value)}
             required
-            step="0.1"
+            step="1"
             type="number"
             value={form.importance}
           />
@@ -148,7 +149,15 @@ export default function TodoForm({ initialTodo, onCancel, onSubmit, t, busy }) {
               {t("cancelEdit")}
             </button>
           )}
+
+          {initialTodo && onDelete && (
+            <button className="button danger-button" disabled={busy} onClick={onDelete} type="button">
+              {t("delete")}
+            </button>
+          )}
         </div>
+
+        {initialTodo && <p className="shortcut-hint">{t("deleteShortcutHint")}</p>}
       </form>
     </section>
   );

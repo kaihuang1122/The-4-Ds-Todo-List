@@ -3,6 +3,7 @@ export const storageKeys = {
   theme: "quadrant.theme",
   viewMode: "quadrant.viewMode",
   sortConfig: "quadrant.sortConfig",
+  workspaceTitlePrefix: "quadrant.workspaceTitle",
 };
 
 export function getSystemTheme() {
@@ -28,6 +29,10 @@ export function writeStorage(key, value) {
   } catch {
     return;
   }
+}
+
+export function getWorkspaceTitleStorageKey(userId) {
+  return `${storageKeys.workspaceTitlePrefix}.${userId}`;
 }
 
 export function combineDeadline(dueDate, dueTime) {
@@ -138,23 +143,11 @@ export function getImportancePosition(importance, minImportance, maxImportance) 
 }
 
 export function getAxisSummary(todos) {
-  if (!todos.length) {
-    return null;
-  }
-
-  const dueValues = todos.map((todo) => todo.dueAt);
-  const importanceValues = todos.map((todo) => todo.importance);
-
-  return {
-    minDueAt: Math.min(...dueValues),
-    maxDueAt: Math.max(...dueValues),
-    minImportance: Math.min(...importanceValues),
-    maxImportance: Math.max(...importanceValues),
-  };
+  return getAxisSummaryWithNow(todos);
 }
 
-export function getQuadrantCounts(todos) {
-  const summary = getAxisSummary(todos);
+export function getQuadrantCounts(todos, nowAt = Date.now()) {
+  const summary = getAxisSummaryWithNow(todos, nowAt);
 
   if (!summary) {
     return {
@@ -165,7 +158,7 @@ export function getQuadrantCounts(todos) {
     };
   }
 
-  const dueMidpoint = (summary.minDueAt + summary.maxDueAt) / 2;
+  const dueMidpoint = (summary.domainStartAt + summary.maxDueAt) / 2;
   const importanceMidpoint = (summary.minImportance + summary.maxImportance) / 2;
 
   return todos.reduce(
@@ -211,4 +204,104 @@ export function getAuthErrorMessage(errorCode, t) {
     default:
       return t("errorGenericAuth");
   }
+}
+
+export function getAxisSummaryWithNow(todos, nowAt = Date.now()) {
+  if (!todos.length) {
+    return null;
+  }
+
+  const dueValues = todos.map((todo) => todo.dueAt);
+  const importanceValues = todos.map((todo) => todo.importance);
+  const minDueAt = Math.min(...dueValues);
+  const maxDueAt = Math.max(...dueValues);
+
+  return {
+    nowAt,
+    domainStartAt: Math.min(nowAt, minDueAt),
+    minDueAt,
+    maxDueAt,
+    minImportance: Math.min(...importanceValues),
+    maxImportance: Math.max(...importanceValues),
+  };
+}
+
+const timeTickSteps = [
+  60 * 60 * 1000,
+  3 * 60 * 60 * 1000,
+  6 * 60 * 60 * 1000,
+  12 * 60 * 60 * 1000,
+  24 * 60 * 60 * 1000,
+  2 * 24 * 60 * 60 * 1000,
+  7 * 24 * 60 * 60 * 1000,
+  14 * 24 * 60 * 60 * 1000,
+  30 * 24 * 60 * 60 * 1000,
+  90 * 24 * 60 * 60 * 1000,
+  180 * 24 * 60 * 60 * 1000,
+  365 * 24 * 60 * 60 * 1000,
+  730 * 24 * 60 * 60 * 1000,
+];
+
+function formatAxisTick(timestamp, locale, range) {
+  const options =
+    range <= 2 * 24 * 60 * 60 * 1000
+      ? {
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+        }
+      : range <= 120 * 24 * 60 * 60 * 1000
+        ? {
+            month: "2-digit",
+            day: "2-digit",
+          }
+        : range <= 730 * 24 * 60 * 60 * 1000
+          ? {
+              year: "numeric",
+              month: "2-digit",
+            }
+          : {
+              year: "numeric",
+            };
+
+  return new Intl.DateTimeFormat(locale, options).format(new Date(timestamp));
+}
+
+export function getTimeAxisTicks(startAt, endAt, locale) {
+  if (!Number.isFinite(startAt) || !Number.isFinite(endAt)) {
+    return [];
+  }
+
+  if (endAt <= startAt) {
+    return [
+      {
+        value: startAt,
+        label: formatAxisTick(startAt, locale, 0),
+      },
+    ];
+  }
+
+  const range = endAt - startAt;
+  const idealStep = range / 5;
+  const step = timeTickSteps.find((candidate) => candidate >= idealStep) || timeTickSteps.at(-1);
+  const ticks = [startAt];
+  let current = Math.ceil(startAt / step) * step;
+
+  while (current < endAt) {
+    if (current > startAt) {
+      ticks.push(current);
+    }
+
+    current += step;
+  }
+
+  ticks.push(endAt);
+
+  return [...new Set(ticks.map((value) => Math.round(value)))]
+    .sort((left, right) => left - right)
+    .map((value) => ({
+      value,
+      label: formatAxisTick(value, locale, range),
+    }));
 }

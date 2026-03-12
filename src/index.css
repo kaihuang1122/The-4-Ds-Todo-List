@@ -120,6 +120,28 @@ button {
   line-height: 1.6;
 }
 
+.workspace-title-input {
+  max-width: min(100%, 32rem);
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  background: transparent;
+  color: var(--text);
+  font-size: clamp(1.65rem, 3vw, 2.5rem);
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.workspace-title-input:focus {
+  outline: none;
+  border-bottom-color: var(--accent);
+  box-shadow: none;
+}
+
+.workspace-title-input::placeholder {
+  color: var(--muted);
+}
+
 .section-heading.compact h2 {
   font-size: 1.35rem;
 }
@@ -338,6 +360,12 @@ button {
   margin-top: 16px;
 }
 
+.shortcut-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
 .status-banner {
   margin-bottom: 24px;
   padding: 14px 16px;
@@ -439,6 +467,7 @@ tbody tr:last-child td {
 .chart-area {
   position: relative;
   min-height: 520px;
+  padding: 20px 18px 76px;
   border-radius: 24px;
   border: 1px solid var(--border);
   overflow: hidden;
@@ -468,6 +497,7 @@ tbody tr:last-child td {
 
 .quadrant-label {
   position: absolute;
+  z-index: 1;
   padding: 8px 12px;
   border-radius: 999px;
   border: 1px solid var(--border);
@@ -498,7 +528,7 @@ tbody tr:last-child td {
 
 .chart-point {
   position: absolute;
-  z-index: 2;
+  z-index: 3;
   width: 52px;
   height: 52px;
   border: 0;
@@ -507,6 +537,30 @@ tbody tr:last-child td {
   color: #fff;
   box-shadow: 0 16px 26px rgba(44, 105, 255, 0.28);
   transform: translate(-50%, 50%);
+}
+
+.now-line {
+  position: absolute;
+  top: 10px;
+  bottom: 58px;
+  z-index: 1;
+  width: 0;
+  border-left: 1px dashed var(--accent);
+  pointer-events: none;
+}
+
+.now-label {
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  transform: translate(-50%, -100%);
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.74rem;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 .chart-point:hover {
@@ -526,12 +580,12 @@ tbody tr:last-child td {
 
 .x-left {
   left: 18px;
-  bottom: 18px;
+  bottom: 62px;
 }
 
 .x-right {
   right: 18px;
-  bottom: 18px;
+  bottom: 62px;
 }
 
 .y-top {
@@ -541,7 +595,41 @@ tbody tr:last-child td {
 
 .y-bottom {
   left: 18px;
-  bottom: 58px;
+  bottom: 100px;
+}
+
+.time-axis {
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  bottom: 14px;
+  height: 40px;
+  z-index: 1;
+}
+
+.time-tick {
+  position: absolute;
+  bottom: 0;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  transform: translateX(-50%);
+  color: var(--muted);
+}
+
+.time-tick-mark {
+  width: 1px;
+  height: 10px;
+  background: var(--grid);
+}
+
+.time-tick-label {
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-elevated);
+  font-size: 0.76rem;
+  white-space: nowrap;
 }
 
 @media (max-width: 1160px) {
@@ -588,6 +676,7 @@ tbody tr:last-child td {
 
   .chart-area {
     min-height: 400px;
+    padding-bottom: 84px;
   }
 
   .chart-point {
