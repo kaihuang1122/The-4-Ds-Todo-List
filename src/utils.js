@@ -3,7 +3,6 @@ export const storageKeys = {
   theme: "quadrant.theme",
   viewMode: "quadrant.viewMode",
   sortConfig: "quadrant.sortConfig",
-  workspaceTitlePrefix: "quadrant.workspaceTitle",
 };
 
 export function getSystemTheme() {
@@ -31,9 +30,6 @@ export function writeStorage(key, value) {
   }
 }
 
-export function getWorkspaceTitleStorageKey(userId) {
-  return `${storageKeys.workspaceTitlePrefix}.${userId}`;
-}
 
 export function combineDeadline(dueDate, dueTime) {
   if (!dueDate) {
@@ -226,44 +222,62 @@ export function getAxisSummaryWithNow(todos, nowAt = Date.now()) {
   };
 }
 
-const timeTickSteps = [
-  60 * 60 * 1000,
-  3 * 60 * 60 * 1000,
-  6 * 60 * 60 * 1000,
-  12 * 60 * 60 * 1000,
-  24 * 60 * 60 * 1000,
-  2 * 24 * 60 * 60 * 1000,
-  7 * 24 * 60 * 60 * 1000,
-  14 * 24 * 60 * 60 * 1000,
-  30 * 24 * 60 * 60 * 1000,
-  90 * 24 * 60 * 60 * 1000,
-  180 * 24 * 60 * 60 * 1000,
-  365 * 24 * 60 * 60 * 1000,
-  730 * 24 * 60 * 60 * 1000,
-];
+const DAY_MS = 24 * 60 * 60 * 1000;
 
-function formatAxisTick(timestamp, locale, range) {
+function startOfDay(timestamp) {
+  const date = new Date(timestamp);
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
+function startOfWeek(timestamp, weekStartsOn = 1) {
+  const date = startOfDay(timestamp);
+  const day = date.getDay();
+  const diff = (day - weekStartsOn + 7) % 7;
+  date.setDate(date.getDate() - diff);
+  return date;
+}
+
+function startOfMonth(timestamp) {
+  const date = startOfDay(timestamp);
+  date.setDate(1);
+  return date;
+}
+
+function startOfYear(timestamp) {
+  const date = startOfDay(timestamp);
+  date.setMonth(0, 1);
+  return date;
+}
+
+function addDays(date, days) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function addMonths(date, months) {
+  const next = new Date(date);
+  next.setDate(1);
+  next.setMonth(next.getMonth() + months);
+  next.setHours(0, 0, 0, 0);
+  return next;
+}
+
+function addYears(date, years) {
+  const next = new Date(date);
+  next.setFullYear(next.getFullYear() + years, 0, 1);
+  next.setHours(0, 0, 0, 0);
+  return next;
+}
+
+function formatAxisTick(timestamp, locale, unit) {
   const options =
-    range <= 2 * 24 * 60 * 60 * 1000
-      ? {
-          month: "2-digit",
-          day: "2-digit",
-          hour: "2-digit",
-          minute: "2-digit",
-        }
-      : range <= 120 * 24 * 60 * 60 * 1000
-        ? {
-            month: "2-digit",
-            day: "2-digit",
-          }
-        : range <= 730 * 24 * 60 * 60 * 1000
-          ? {
-              year: "numeric",
-              month: "2-digit",
-            }
-          : {
-              year: "numeric",
-            };
+    unit === "month"
+      ? { year: "numeric", month: "2-digit" }
+      : unit === "year"
+        ? { year: "numeric" }
+        : { month: "2-digit", day: "2-digit" };
 
   return new Intl.DateTimeFormat(locale, options).format(new Date(timestamp));
 }
@@ -282,26 +296,75 @@ export function getTimeAxisTicks(startAt, endAt, locale) {
     ];
   }
 
-  const range = endAt - startAt;
-  const idealStep = range / 5;
-  const step = timeTickSteps.find((candidate) => candidate >= idealStep) || timeTickSteps.at(-1);
-  const ticks = [startAt];
-  let current = Math.ceil(startAt / step) * step;
+  const rangeDays = (endAt - startAt) / DAY_MS;
+  const unit =
+    rangeDays <= 21
+      ? "day"
+      : rangeDays <= 90
+        ? "week"
+        : rangeDays <= 180
+          ? "biweek"
+          : rangeDays <= 730
+            ? "month"
+            : "year";
 
-  while (current < endAt) {
-    if (current > startAt) {
-      ticks.push(current);
+  const ticks = [];
+  let current;
+
+  if (unit === "day") {
+    current = startOfDay(startAt);
+    if (current.getTime() < startAt) {
+      current = addDays(current, 1);
     }
 
-    current += step;
+    while (current.getTime() <= endAt) {
+      ticks.push(current.getTime());
+      current = addDays(current, 1);
+    }
+  } else if (unit === "week" || unit === "biweek") {
+    const stepWeeks = unit === "biweek" ? 2 : 1;
+    current = startOfWeek(startAt);
+    if (current.getTime() < startAt) {
+      current = addDays(current, 7 * stepWeeks);
+    }
+
+    while (current.getTime() <= endAt) {
+      ticks.push(current.getTime());
+      current = addDays(current, 7 * stepWeeks);
+    }
+  } else if (unit === "month") {
+    current = startOfMonth(startAt);
+    if (current.getTime() < startAt) {
+      current = addMonths(current, 1);
+    }
+
+    while (current.getTime() <= endAt) {
+      ticks.push(current.getTime());
+      current = addMonths(current, 1);
+    }
+  } else {
+    current = startOfYear(startAt);
+    if (current.getTime() < startAt) {
+      current = addYears(current, 1);
+    }
+
+    while (current.getTime() <= endAt) {
+      ticks.push(current.getTime());
+      current = addYears(current, 1);
+    }
   }
 
-  ticks.push(endAt);
+  if (!ticks.length) {
+    const labelUnit = unit === "biweek" ? "week" : unit;
+    return [
+      { value: startAt, label: formatAxisTick(startAt, locale, labelUnit) },
+      { value: endAt, label: formatAxisTick(endAt, locale, labelUnit) },
+    ];
+  }
 
-  return [...new Set(ticks.map((value) => Math.round(value)))]
-    .sort((left, right) => left - right)
-    .map((value) => ({
-      value,
-      label: formatAxisTick(value, locale, range),
-    }));
+  const labelUnit = unit === "biweek" ? "week" : unit;
+  return ticks.map((value) => ({
+    value,
+    label: formatAxisTick(value, locale, labelUnit),
+  }));
 }

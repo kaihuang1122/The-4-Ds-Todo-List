@@ -8,6 +8,7 @@ export default function TopBar({
   onViewModeChange,
   onWorkspaceTitleBlur,
   onWorkspaceTitleChange,
+  onWorkspaceTitleFocus,
   t,
   theme,
   user,
@@ -25,6 +26,7 @@ export default function TopBar({
           maxLength="60"
           onBlur={onWorkspaceTitleBlur}
           onChange={(event) => onWorkspaceTitleChange(event.target.value)}
+          onFocus={onWorkspaceTitleFocus}
           placeholder={t("workspaceTitlePlaceholder")}
           type="text"
           value={workspaceTitle}

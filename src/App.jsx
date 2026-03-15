@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   createUserWithEmailAndPassword,
   onAuthStateChanged,
@@ -18,7 +18,6 @@ import {
   getAuthErrorMessage,
   getQuadrantCounts,
   getSystemTheme,
-  getWorkspaceTitleStorageKey,
   readStorage,
   sortTodos,
   storageKeys,
@@ -155,9 +154,15 @@ export default function App() {
   const [formVersion, setFormVersion] = useState(0);
   const [status, setStatus] = useState(null);
   const [workspaceTitle, setWorkspaceTitle] = useState("");
+  const [workspaceTitleFromCloud, setWorkspaceTitleFromCloud] = useState("");
   const [nowTimestamp, setNowTimestamp] = useState(() => Date.now());
+  const workspaceTitleEditingRef = useRef(false);
 
   const t = useMemo(() => createTranslator(locale), [locale]);
+  const workspaceProfileRef = useMemo(
+    () => (db && user ? doc(db, "users", user.uid, "settings", "profile") : null),
+    [db, user],
+  );
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -192,27 +197,67 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!user) {
+    if (!workspaceProfileRef) {
       setWorkspaceTitle(t("appTitle"));
-      return;
+      setWorkspaceTitleFromCloud("");
+      return undefined;
     }
 
-    const storedTitle = readStorage(getWorkspaceTitleStorageKey(user.uid), "");
-    setWorkspaceTitle(storedTitle || t("appTitle"));
-  }, [t, user]);
+    const unsubscribe = onSnapshot(
+      workspaceProfileRef,
+      (snapshot) => {
+        const data = snapshot.data() || {};
+        const remoteTitle = typeof data.workspaceTitle === "string" ? data.workspaceTitle : "";
+        setWorkspaceTitleFromCloud(remoteTitle);
+
+        if (!workspaceTitleEditingRef.current) {
+          setWorkspaceTitle(remoteTitle || t("appTitle"));
+        }
+      },
+      (error) => {
+        setStatus({
+          type: "error",
+          message: getAuthErrorMessage(error.code, t),
+        });
+      },
+    );
+
+    return unsubscribe;
+  }, [t, workspaceProfileRef]);
 
   useEffect(() => {
     const nextTitle = user ? workspaceTitle.trim() || t("appTitle") : t("appTitle");
     document.title = nextTitle;
   }, [t, user, workspaceTitle]);
 
-  useEffect(() => {
-    if (!user) {
+  async function persistWorkspaceTitle(rawTitle) {
+    if (!workspaceProfileRef) {
       return;
     }
 
-    writeStorage(getWorkspaceTitleStorageKey(user.uid), workspaceTitle.trim() || t("appTitle"));
-  }, [t, user, workspaceTitle]);
+    const trimmed = rawTitle.trim();
+
+    if (trimmed === workspaceTitleFromCloud) {
+      return;
+    }
+
+    try {
+      await setDoc(
+        workspaceProfileRef,
+        {
+          workspaceTitle: trimmed,
+          updatedAt: Date.now(),
+        },
+        { merge: true },
+      );
+      setWorkspaceTitleFromCloud(trimmed);
+    } catch (error) {
+      setStatus({
+        type: "error",
+        message: getAuthErrorMessage(error.code, t),
+      });
+    }
+  }
 
   useEffect(() => {
     if (!isFirebaseConfigured || !auth) {
@@ -431,6 +476,12 @@ export default function App() {
     }
 
     function handleKeyDown(event) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        handleCancelEdit();
+        return;
+      }
+
       const wantsDelete = event.key === "Delete" || (event.metaKey && event.key === "Backspace");
 
       if (!wantsDelete || isEditableTarget(event.target)) {
@@ -443,7 +494,7 @@ export default function App() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [busy, handleDelete, selectedTodo]);
+  }, [busy, handleCancelEdit, handleDelete, selectedTodo]);
 
   function handleEdit(todo) {
     setSelectedTodo(todo);
@@ -455,9 +506,15 @@ export default function App() {
   }
 
   function handleWorkspaceTitleBlur() {
+    workspaceTitleEditingRef.current = false;
     if (!workspaceTitle.trim()) {
       setWorkspaceTitle(t("appTitle"));
     }
+    void persistWorkspaceTitle(workspaceTitle);
+  }
+
+  function handleWorkspaceTitleFocus() {
+    workspaceTitleEditingRef.current = true;
   }
 
   if (!isFirebaseConfigured) {
@@ -540,6 +597,7 @@ export default function App() {
         onViewModeChange={setViewMode}
         onWorkspaceTitleBlur={handleWorkspaceTitleBlur}
         onWorkspaceTitleChange={setWorkspaceTitle}
+        onWorkspaceTitleFocus={handleWorkspaceTitleFocus}
         t={t}
         theme={theme}
         user={user}
